@@ -1,12 +1,8 @@
 import network
-import urequests
 import utime
-import time
-from machine import Pin
 import ubinascii
-from ubluetooth import BLE, UUID
+from ubluetooth import BLE
 from env import env
-
 
 # 環境変数がロードされているか確認
 if not env:
@@ -16,40 +12,21 @@ if not env:
 SSID = env.get("SSID")
 PASSWORD = env.get("PASSWORD")
 
-# IFTTT情報
-IFTTT_EVENT = env.get("IFTTT_EVENT")
-IFTTT_KEY = env.get("IFTTT_KEY")
+# デバイス情報を保存する辞書
+devices = {}
 
 
 # Wi-Fi接続
 def connect_wifi(ssid, password):
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
-    print(f"Connecting to Wi-Fi({SSID})...")
+    print(f"Connecting to Wi-Fi({ssid})...")
     wlan.connect(ssid, password)
 
     while not wlan.isconnected():
         pass
 
     print("Wi-Fi connected:", wlan.ifconfig())
-
-
-# グローバル変数でデバイスの最後の送信時刻を追跡
-last_send_time = {}
-
-
-def send_to_ifttt(rssi, mac, name):
-    current_time = utime.time()
-    if mac not in last_send_time or current_time - last_send_time[mac] >= 1:
-        url = f"https://maker.ifttt.com/trigger/{IFTTT_EVENT}/with/key/{IFTTT_KEY}"
-        payload = {"value1": mac, "value2": rssi, "value3": name}
-        headers = {"Content-Type": "application/json"}
-        response = urequests.post(url, json=payload, headers=headers)
-        print(f"Sent data for {mac}: RSSI={rssi}, Name={name}")
-        print(response.text)
-        last_send_time[mac] = current_time
-    else:
-        print(f"Skipped sending for {mac}: too soon since last send")
 
 
 def parse_adv_data(adv_data):
@@ -78,18 +55,30 @@ def bt_irq(event, data):
         addr_type, addr, adv_type, rssi, adv_data = data
         mac = ubinascii.hexlify(addr).decode()
         name = parse_adv_data(adv_data)
-        send_to_ifttt(rssi, mac, name)
+        current_time = utime.time()
+
+        if mac not in devices:
+            devices[mac] = {"name": name, "max_rssi": rssi, "min_rssi": rssi, "last_seen": current_time}
+        else:
+            devices[mac]["last_seen"] = current_time
+            devices[mac]["max_rssi"] = max(devices[mac]["max_rssi"], rssi)
+            devices[mac]["min_rssi"] = min(devices[mac]["min_rssi"], rssi)
 
 
-last_data = None
+def print_device_list():
+    current_time = utime.time()
+    print("\nDevices seen in the last minute:")
+    print("MAC Address         | Device Name        | Max RSSI | Min RSSI")
+    print("-" * 65)
+    for mac, info in devices.items():
+        if current_time - info["last_seen"] <= 60:  # 直近1分以内に見たデバイスのみ
+            print(f"{mac:18} | {info['name'][:18]:18} | {info['max_rssi']:8} | {info['min_rssi']:8}")
 
 
 def main():
-    global last_data
-
     # 環境変数のチェック
-    if not SSID or not PASSWORD or not IFTTT_EVENT or not IFTTT_KEY:
-        raise ValueError("Missing Wi-Fi or IFTTT configuration. Check your .env file.")
+    if not SSID or not PASSWORD:
+        raise ValueError("Missing Wi-Fi configuration. Check your .env file.")
 
     # Wi-Fi接続
     connect_wifi(SSID, PASSWORD)
@@ -99,13 +88,13 @@ def main():
     ble = BLE()
     ble.active(True)
     ble.irq(bt_irq)
-    # ble.gap_scan(0)  # Start scanning (0 means scan indefinitely)
-    ble.gap_scan(10000, 30000, 30000)  # Scan for 10 seconds, with 30ms interval and window
+    ble.gap_scan(0)  # 継続的にスキャン
     print("BLE setting finished.")
 
-    # 1秒毎にデータを送信するループ
+    # 5秒おきにデバイスリストを表示
     while True:
-        utime.sleep(1)
+        print_device_list()
+        utime.sleep(5)
 
 
 if __name__ == "__main__":
