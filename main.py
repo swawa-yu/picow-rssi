@@ -3,6 +3,7 @@ import utime
 import ubinascii
 from ubluetooth import BLE
 from env import env
+import math
 
 # 環境変数がロードされているか確認
 if not env:
@@ -50,6 +51,19 @@ def parse_adv_data(adv_data):
     return name if name else "Unknown"
 
 
+def estimate_distance(rssi):
+    # この計算は環境に応じて調整が必要です
+    # 以下は一般的な推定式の例です
+    txPower = -59  # 1メートルでの理想的なRSSI値。デバイスによって異なります
+    if rssi == 0:
+        return -1.0  # エラーを示す値
+    ratio = rssi * 1.0 / txPower
+    if ratio < 1.0:
+        return pow(ratio, 10)
+    else:
+        return (0.89976) * pow(ratio, 7.7095) + 0.111
+
+
 def bt_irq(event, data):
     if event == 5:  # Event 5 is for scan results
         addr_type, addr, adv_type, rssi, adv_data = data
@@ -68,11 +82,13 @@ def bt_irq(event, data):
 def print_device_list():
     current_time = utime.time()
     print("\nDevices seen in the last minute:")
-    print("MAC Address         | Device Name        | Max RSSI | Min RSSI")
-    print("-" * 65)
+    print("MAC Address         | Device Name        | Max RSSI | Min RSSI | Est. Distance (m)")
+    print("-" * 80)
     for mac, info in devices.items():
         if current_time - info["last_seen"] <= 60:  # 直近1分以内に見たデバイスのみ
-            print(f"{mac:18} | {info['name'][:18]:18} | {info['max_rssi']:8} | {info['min_rssi']:8}")
+            avg_rssi = (info["max_rssi"] + info["min_rssi"]) / 2
+            est_distance = estimate_distance(avg_rssi)
+            print(f"{mac:18} | {info['name'][:18]:18} | {info['max_rssi']:8} | {info['min_rssi']:8} | {est_distance:.2f}")
 
 
 def main():
