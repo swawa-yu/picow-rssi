@@ -87,7 +87,7 @@ def print_device_list():
     print("\033[2J\033[H", end="")
 
     print(f"Devices seen in the last minute (sorted by estimated distance) - Current time: {format_time(current_time)}")
-    print("MAC Address         | Device Name        | Current | Max RSSI | Min RSSI | Est. Dist (m) | Last Seen")
+    print("MAC Address         | Device Name        | Current | Max RSSI | Min RSSI | Est. Dist (m) | Last Seen                ")
     print("-" * 105)
 
     # デバイスリストを作成し、推定距離でソート
@@ -103,7 +103,8 @@ def print_device_list():
     for mac, info, est_distance in sorted_devices:
         last_seen_str = format_time(info["last_seen"])
         current_rssi = info.get("current_rssi", info["max_rssi"])  # current_rssiがない場合はmax_rssiを使用
-        print(f"{mac:18} | {info['name'][:18]:18} | {current_rssi:7} | {info['max_rssi']:8} | {info['min_rssi']:8} | {est_distance:12.2f} | {last_seen_str}")
+        time_since_last_detection = current_time - info["last_seen"]
+        print(f"{mac:18} | {info['name'][:18]:18} | {current_rssi:7} | {info['max_rssi']:8} | {info['min_rssi']:8} | {est_distance:12.2f} | {last_seen_str} ({time_since_last_detection} seconds ago)")
 
 
 def main():
