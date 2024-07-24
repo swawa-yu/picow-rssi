@@ -52,11 +52,9 @@ def parse_adv_data(adv_data):
 
 
 def estimate_distance(rssi):
-    # この計算は環境に応じて調整が必要です
-    # 以下は一般的な推定式の例です
-    txPower = -59  # 1メートルでの理想的なRSSI値。デバイスによって異なります
+    txPower = -59
     if rssi == 0:
-        return -1.0  # エラーを示す値
+        return float("inf")  # 無限大を返す
     ratio = rssi * 1.0 / txPower
     if ratio < 1.0:
         return pow(ratio, 10)
@@ -72,23 +70,40 @@ def bt_irq(event, data):
         current_time = utime.time()
 
         if mac not in devices:
-            devices[mac] = {"name": name, "max_rssi": rssi, "min_rssi": rssi, "last_seen": current_time}
+            devices[mac] = {"name": name, "max_rssi": rssi, "min_rssi": rssi, "last_seen": current_time, "current_rssi": rssi}
         else:
-            devices[mac]["last_seen"] = current_time
-            devices[mac]["max_rssi"] = max(devices[mac]["max_rssi"], rssi)
-            devices[mac]["min_rssi"] = min(devices[mac]["min_rssi"], rssi)
+            devices[mac].update({"last_seen": current_time, "max_rssi": max(devices[mac]["max_rssi"], rssi), "min_rssi": min(devices[mac]["min_rssi"], rssi), "current_rssi": rssi})
+
+
+def format_time(timestamp):
+    t = utime.localtime(timestamp)
+    return "{:02d}:{:02d}:{:02d}".format(t[3], t[4], t[5])
 
 
 def print_device_list():
     current_time = utime.time()
-    print("\nDevices seen in the last minute:")
-    print("MAC Address         | Device Name        | Max RSSI | Min RSSI | Est. Distance (m)")
-    print("-" * 80)
+
+    # 画面をクリア
+    print("\033[2J\033[H", end="")
+
+    print(f"Devices seen in the last minute (sorted by estimated distance) - Current time: {format_time(current_time)}")
+    print("MAC Address         | Device Name        | Current | Max RSSI | Min RSSI | Est. Dist (m) | Last Seen")
+    print("-" * 105)
+
+    # デバイスリストを作成し、推定距離でソート
+    sorted_devices = []
     for mac, info in devices.items():
         if current_time - info["last_seen"] <= 60:  # 直近1分以内に見たデバイスのみ
-            avg_rssi = (info["max_rssi"] + info["min_rssi"]) / 2
-            est_distance = estimate_distance(avg_rssi)
-            print(f"{mac:18} | {info['name'][:18]:18} | {info['max_rssi']:8} | {info['min_rssi']:8} | {est_distance:.2f}")
+            current_rssi = info.get("current_rssi", info["max_rssi"])  # current_rssiがない場合はmax_rssiを使用
+            est_distance = estimate_distance(current_rssi)
+            sorted_devices.append((mac, info, est_distance))
+
+    sorted_devices.sort(key=lambda x: x[2])  # 推定距離でソート
+
+    for mac, info, est_distance in sorted_devices:
+        last_seen_str = format_time(info["last_seen"])
+        current_rssi = info.get("current_rssi", info["max_rssi"])  # current_rssiがない場合はmax_rssiを使用
+        print(f"{mac:18} | {info['name'][:18]:18} | {current_rssi:7} | {info['max_rssi']:8} | {info['min_rssi']:8} | {est_distance:12.2f} | {last_seen_str}")
 
 
 def main():
@@ -107,10 +122,10 @@ def main():
     ble.gap_scan(0)  # 継続的にスキャン
     print("BLE setting finished.")
 
-    # 5秒おきにデバイスリストを表示
+    # 1秒おきにデバイスリストを表示
     while True:
         print_device_list()
-        utime.sleep(5)
+        utime.sleep(1)
 
 
 if __name__ == "__main__":
