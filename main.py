@@ -1,9 +1,10 @@
 import network
 import utime
+import urequests
 import ubinascii
 from ubluetooth import BLE
-from env import env
-import math
+from env import env2 as env
+from machine import Timer
 
 # 環境変数がロードされているか確認
 if not env:
@@ -12,6 +13,9 @@ if not env:
 # Wi-Fi接続情報
 SSID = env.get("SSID")
 PASSWORD = env.get("PASSWORD")
+
+IFTTT_EVENT = env.get("IFTTT_EVENT")
+IFTTT_KEY = env.get("IFTTT_KEY")
 
 # デバイス情報を保存する辞書
 devices = {}
@@ -28,6 +32,14 @@ def connect_wifi(ssid, password):
         pass
 
     print("Wi-Fi connected:", wlan.ifconfig())
+
+
+def send_to_ifttt(rssi, mac):
+    url = f"https://maker.ifttt.com/trigger/{IFTTT_EVENT}/with/key/{IFTTT_KEY}"
+    payload = {"value1": mac, "value2": rssi}
+    headers = {"Content-Type": "application/json"}
+    response = urequests.post(url, json=payload, headers=headers)
+    print(response.text)
 
 
 def parse_adv_data(adv_data):
@@ -88,12 +100,12 @@ def print_device_list():
 
     print(f"Devices seen in the last minute (sorted by estimated distance) - Current time: {format_time(current_time)}")
     print("MAC Address         | Device Name        | Current | Max RSSI | Min RSSI | Est. Dist (m) | Last Seen                ")
-    print("-" * 105)
+    print("-" * 115)
 
     # デバイスリストを作成し、推定距離でソート
     sorted_devices = []
     for mac, info in devices.items():
-        if current_time - info["last_seen"] <= 60:  # 直近1分以内に見たデバイスのみ
+        if current_time - info["last_seen"] <= 120:  # 直近1分以内に見たデバイスのみ
             current_rssi = info.get("current_rssi", info["max_rssi"])  # current_rssiがない場合はmax_rssiを使用
             est_distance = estimate_distance(current_rssi)
             sorted_devices.append((mac, info, est_distance))
@@ -105,6 +117,29 @@ def print_device_list():
         current_rssi = info.get("current_rssi", info["max_rssi"])  # current_rssiがない場合はmax_rssiを使用
         time_since_last_detection = current_time - info["last_seen"]
         print(f"{mac:18} | {info['name'][:18]:18} | {current_rssi:7} | {info['max_rssi']:8} | {info['min_rssi']:8} | {est_distance:12.2f} | {last_seen_str} ({time_since_last_detection} seconds ago)")
+
+    print("-" * 115)
+    # デバイスリストを作成し、推定距離でソート
+    sorted_devices = []
+    for mac, info in devices.items():
+        if current_time - info["last_seen"] > 120:  # 直近1分以内に見たデバイスのみ
+            current_rssi = info.get("current_rssi", info["max_rssi"])  # current_rssiがない場合はmax_rssiを使用
+            est_distance = estimate_distance(current_rssi)
+            sorted_devices.append((mac, info, est_distance))
+
+    sorted_devices.sort(key=lambda x: x[2])  # 推定距離でソート
+
+    for mac, info, est_distance in sorted_devices:
+        last_seen_str = format_time(info["last_seen"])
+        current_rssi = info.get("current_rssi", info["max_rssi"])  # current_rssiがない場合はmax_rssiを使用
+        time_since_last_detection = current_time - info["last_seen"]
+        print(f"{mac:18} | {info['name'][:18]:18} | {current_rssi:7} | {info['max_rssi']:8} | {info['min_rssi']:8} | {est_distance:12.2f} | {last_seen_str} ({time_since_last_detection} seconds ago)")
+
+
+def periodic_send(timer):
+    for k, v in devices.items():
+        rssi, mac = devices[k]["current_rssi"], k
+        send_to_ifttt(rssi, mac)
 
 
 def main():
@@ -123,10 +158,14 @@ def main():
     ble.gap_scan(0)  # 継続的にスキャン
     print("BLE setting finished.")
 
+    # 1秒毎にデータを送信するタイマー設定
+    timer = Timer(-1)
+    timer.init(period=1000, mode=Timer.PERIODIC, callback=periodic_send)
+
     # 1秒おきにデバイスリストを表示
     while True:
         print_device_list()
-        utime.sleep(1)
+        utime.sleep(0.1)
 
 
 if __name__ == "__main__":

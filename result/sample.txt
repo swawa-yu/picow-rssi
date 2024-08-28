@@ -1,0 +1,18 @@
+Devices seen in the last minute:
+MAC Address         | Device Name        | Max RSSI | Min RSSI | Est. Distance (m)
+--------------------------------------------------------------------------------
+51fcdcb5bddd       | Unknown            |      -55 |      -55 | 0.50
+50e862632fd5       | Unknown            |      -55 |      -55 | 0.50
+12587f932cb9       | Unknown            |      -71 |      -71 | 3.86
+04c8f41c7e0b       | Unknown            |      -53 |      -75 | 1.80
+49694de293df       | Unknown            |      -41 |      -41 | 0.03
+570b595f5e53       | Unknown            |      -55 |      -85 | 3.47
+1338a4ac3460       | Unknown            |      -49 |      -63 | 0.59
+324b5215467f       | Unknown            |      -56 |      -75 | 2.12
+73b57a789cb5       | Unknown            |      -54 |      -56 | 0.50
+19b6e7cae94a       | Unknown            |      -71 |      -72 | 4.07
+40f301d42859       | Unknown            |      -70 |      -72 | 3.86
+5ca8b7ec6232       | Unknown            |      -64 |      -64 | 1.80
+471023da2bac       | Unknown            |      -69 |      -69 | 3.12
+ce8c7df0f9a3       | MESH-100LE1015520  |      -69 |      -69 | 3.12
+701abf44314a       | Unknown            |      -63 |      -63 | 1.60
