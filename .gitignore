@@ -1,3 +1,8 @@
+.gitignore
 /.env
 /_main.py
 /env.py
+_main2.py
+_main3.py
+main2.py
+eduroam.py
